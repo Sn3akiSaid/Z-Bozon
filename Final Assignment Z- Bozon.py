@@ -140,7 +140,7 @@ def mesh_arrays(x_array, y_array, energy, observed, uncertainty):
 
     y_array_mesh = np.empty((0, len(y_array)))
 
-    for dummy_element in x_array:
+    for _ in x_array:
         y_array_mesh = np.vstack((y_array_mesh, y_array))
 
     y_array_mesh = np.transpose(y_array_mesh)
@@ -167,12 +167,17 @@ def minimisation(mass_start, gamma_start, x_data, y_data, uncert):
     return mass_min, gamma_min, cross_section_min
 
 
-def contour_plot(energy, observed, uncertainty, chi_square):
-    mass_array, gamma_array = array_gen(mass_min3, gamma_min3)
+def mesh_gen(energy, observed, uncertainty, mass_min, gamma_min):
+    mass_array, gamma_array = array_gen(mass_min, gamma_min)
 
     mass_mesh, gamma_mesh, chi_squared_mesh = mesh_arrays(
         mass_array, gamma_array, energy, observed, uncertainty
     )
+    return mass_mesh, gamma_mesh, chi_squared_mesh
+
+
+def contour_plot(mass_mesh, gamma_mesh, chi_squared_mesh, chi_square):
+
     ax = plt.figure().add_subplot(111)
     ax.set_title(r"$\chi^2$ contours against $m_Z$ and $\Gamma_Z$.", fontsize=14)
     ax.set_xlabel("$m_Z$", fontsize=14)
@@ -201,18 +206,20 @@ def contour_plot(energy, observed, uncertainty, chi_square):
     return plot
 
 
-def cross_section_plot(Energy_Range, mass_min3, gamma_min3):
+def cross_section_plot(
+    energy, cross_section, cross_section_errors, energy_range, mass_min, gamma_min
+):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     # plot of data
     ax.set_xlabel("Energy", fontsize=14)
     ax.set_ylabel(r"$\sigma$", fontsize=14)
     ax.tick_params(axis="x", width=1, labelsize=10)
-    ax.scatter(Energy2, Cross_Section2, marker="x", linewidth=1, label="Data points")
+    ax.scatter(energy, cross_section, marker="x", linewidth=1, label="Data points")
     ax.errorbar(
-        Energy2,
-        Cross_Section2,
-        Cross_Section_errors2,
+        energy,
+        cross_section,
+        cross_section_errors,
         ls="none",
         ecolor="green",
         linewidth=1.3,
@@ -221,8 +228,8 @@ def cross_section_plot(Energy_Range, mass_min3, gamma_min3):
     ax.set_title(r"Cross Section($\sigma$) against Energy of $Z_0$ boson")
 
     ax.plot(
-        Energy_Range,
-        cross_section_function(Energy_Range, mass_min3, gamma_min3),
+        energy_range,
+        cross_section_function(energy_range, mass_min, gamma_min),
         color="r",
         label="Fit of data",
     )
@@ -239,28 +246,67 @@ def uncertanties(contour):
     return mass_uncertainty, gamma_uncertainty
 
 
-final_data = data_combination(reading_data(0), reading_data(1))
+starting_data = data_combination(reading_data(0), reading_data(1))
 
-Energy1 = final_data[:, 0]
-Cross_Section1 = final_data[:, 1]
-Cross_Section_errors1 = final_data[:, 2]
+Energy1 = starting_data[:, 0]
+Cross_Section1 = starting_data[:, 1]
+Cross_Section_errors1 = starting_data[:, 2]
 mass_min2, gamma_min2, cross_section_min2 = minimisation(
     MASS_GUESS, GAMMA_Z_GUESS, Energy1, Cross_Section1, Cross_Section_errors1
 )
 
-final_data2 = outlier_removal(final_data, mass_min2, gamma_min2)
-Energy2 = final_data2[:, 0]
-Cross_Section2 = final_data2[:, 1]
-Cross_Section_errors2 = final_data2[:, 2]
-mass_min3, gamma_min3, cross_section_min3 = minimisation(
-    MASS_GUESS, GAMMA_Z_GUESS, Energy2, Cross_Section2, Cross_Section_errors2
+
+def data_finaliser(data):
+    energy = data[:, 0]
+    cross_section = data[:, 1]
+    cross_section_errors = data[:, 2]
+    mass_min, gamma_min, cross_section_min = minimisation(
+        MASS_GUESS, GAMMA_Z_GUESS, energy, cross_section, cross_section_errors
+    )
+    return (
+        energy,
+        cross_section,
+        cross_section_errors,
+        mass_min,
+        gamma_min,
+        cross_section_min,
+    )
+
+
+(
+    Energy1,
+    Cross_Section1,
+    Cross_Section_errors1,
+    mass_min2,
+    gamma_min2,
+    cross_section_min2,
+) = data_finaliser(starting_data)
+
+
+filtered_data = outlier_removal(starting_data, mass_min2, gamma_min2)
+
+(
+    Energy2,
+    Cross_Section2,
+    Cross_Section_errors2,
+    mass_min3,
+    gamma_min3,
+    cross_section_min3,
+) = data_finaliser(filtered_data)
+
+# Energy2 = filtered_data[:, 0]
+# Cross_Section2 = filtered_data[:, 1]
+# Cross_Section_errors2 = filtered_data[:, 2]
+# mass_min3, gamma_min3, cross_section_min3 = minimisation(
+#     MASS_GUESS, GAMMA_Z_GUESS, Energy2, Cross_Section2, Cross_Section_errors2
+# )
+
+mass_mesh, gamma_mesh, chi_squared_mesh = mesh_gen(
+    Energy2, Cross_Section2, Cross_Section_errors2, mass_min3, gamma_min3
 )
 
-# contour plot from function
-#
-_contour = contour_plot(
-    Energy2, Cross_Section2, Cross_Section_errors2, cross_section_min3
-)
+# Contour plot
+_contour = contour_plot(mass_mesh, gamma_mesh, chi_squared_mesh, cross_section_min3)
 
 # Uncertainties and Call plot
 mass_uncertainty, gamma_uncertainty = uncertanties(_contour)
@@ -270,7 +316,10 @@ mass_uncertainty, gamma_uncertainty = uncertanties(_contour)
 Energy_Minimum = np.min(Energy1)
 Energy_Maximum = np.max(Energy1)
 Energy_Range = np.linspace(Energy_Minimum, Energy_Maximum, 1000)
-cross_section_plot(Energy_Range, mass_min3, gamma_min3)
+cross_section_plot(
+    Energy2, Cross_Section2, Cross_Section_errors2, Energy_Range, mass_min3, gamma_min3
+)
+# cross_section_plot(Energy_Range, mass_min3, gamma_min3)
 
 
 plt.show()
