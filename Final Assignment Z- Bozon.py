@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 """
-Spyder Editor
-
-This is a temporary script file.
+Z-Boson Assignment for Introduction to Python physics course (2021)
 """
 
-import numpy as np
+import sys
+
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.constants import elementary_charge, hbar
 from scipy.optimize import fmin
-from scipy.constants import hbar, elementary_charge
 
 GAMMA_EE = 83.91 / 1000  # GeV
 MASS_GUESS = 90  # GeV/c^2
@@ -18,20 +17,21 @@ GAMMA_Z_GUESS = 3  # GeV
 def reading_data(boson_file_number):
 
     boson_files = [("z_boson_data_1.csv"), ("z_boson_data_2.csv")]
-    boson_file = np.genfromtxt(
-        boson_files[boson_file_number], delimiter=",", skip_header=1
-    )
+    try:
+        boson_file = np.genfromtxt(
+            boson_files[boson_file_number], delimiter=",", skip_header=1
+        )
+    except OSError as err:
+        print("OSError: ", err)
+        sys.exit(1)
 
     boson_file_modified = boson_file[boson_file[:, 2] != 0]
 
     nan_row_indices = []
     for row_index, row in enumerate(boson_file_modified):
-        if (
-            np.isnan(row[0]) is True
-            or np.isnan(row[1]) is True
-            or np.isnan(row[2]) is True
-        ):
+        if np.isnan(row).any():
             nan_row_indices.append(row_index)
+
     boson_file_modified = np.delete(boson_file_modified, nan_row_indices, axis=0)
     for i in [0, 1, 2]:
         boson_file_modified = boson_file_modified[boson_file_modified[:, i] >= 0]
@@ -43,7 +43,7 @@ def reading_data(boson_file_number):
     anomalies_row_indices = []
 
     for row_index, row in enumerate(boson_file_modified):
-        if np.abs(row[1] - median) > 3 * standard_deviation:
+        if abs(row[1] - median) > 3 * standard_deviation:
             anomalies_row_indices.append(row_index)
     boson_file_modified = np.delete(boson_file_modified, anomalies_row_indices, axis=0)
     return boson_file_modified
@@ -56,39 +56,15 @@ def data_combination(data_set_1, data_set_2):
 
 
 def outlier_removal(datafile, mass, gamma_z):
-    """
-
-
-    Parameters
-    ----------
-    datafile : TYPE
-        DESCRIPTION.
-    mass : TYPE
-        DESCRIPTION.
-    gamma_z : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    datafile_modified : TYPE
-        DESCRIPTION.
-
-    """
 
     outlier_row_indices = []
     for row_index, _ in enumerate(datafile):
         energy = datafile[row_index, 0]
-        sigma = datafile[row_index, 2]
         cross_section = datafile[row_index, 1]
+        uncertanty = datafile[row_index, 2]
         predicted_cross_section = cross_section_function(energy, mass, gamma_z)
 
-        # if cross_section > predicted_cross_section + 3 * sigma:
-        #     outlier_row_indices.append(row_index)
-        if (
-            predicted_cross_section + 3 * sigma
-            < cross_section
-            < predicted_cross_section - 3 * sigma
-        ):
+        if abs(cross_section - predicted_cross_section) > 3 * uncertanty:
             outlier_row_indices.append(row_index)
     datafile_modified = np.delete(datafile, outlier_row_indices, axis=0)
     return datafile_modified
@@ -202,7 +178,9 @@ def contour_plot(mass_mesh, gamma_mesh, chi_squared_mesh, chi_square):
 
     for index, label in enumerate(labels):
         ax.collections[index].set_label(label)
+
     ax.legend(loc="center left", bbox_to_anchor=(1, 0.5), fontsize=14)
+
     return plot
 
 
@@ -320,21 +298,15 @@ cross_section_plot(
     Energy2, Cross_Section2, Cross_Section_errors2, Energy_Range, mass_min3, gamma_min3
 )
 # cross_section_plot(Energy_Range, mass_min3, gamma_min3)
-
+red_chi = reduced_chi_squared(
+    (mass_min3, gamma_min3), Energy2, Cross_Section2, Cross_Section_errors2
+)
 
 plt.show()
 
 
 print(
-    f"The Gamma value is {0:.4g} +/- {3:.4f} and the mass is {1:.4g} +/- {4}."
-    " The lifetime of the particle is {2:.3E}s.".format(
-        gamma_min3, mass_min3, lifetime(gamma_min3), mass_uncertainty, gamma_uncertainty
-    )
-)
-print(
-    f"The reduced chi^2 value is {0:.3f}".format(
-        reduced_chi_squared(
-            (mass_min3, gamma_min3), Energy2, Cross_Section2, Cross_Section_errors2
-        )
-    )
+    f"The Gamma value is {gamma_min3:.4g} +/- {gamma_uncertainty:.4f} and the mass is {mass_min3:.4g} +/- {mass_uncertainty}."
+    f" The lifetime of the particle is {lifetime(gamma_min3):.3E}s."
+    f"The reduced chi^2 value is {red_chi:.3f}"
 )
