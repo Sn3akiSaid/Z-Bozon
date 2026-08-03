@@ -176,8 +176,9 @@ def contour_plot(mass_mesh, gamma_mesh, chi_squared_mesh, chi_square):
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.7, box.height])
 
-    for index, label in enumerate(labels):
-        ax.collections[index].set_label(label)
+    for collection, label in zip(ax.collections, labels):
+        if collection.get_paths():
+            collection.set_label(label)
 
     ax.legend(loc="center left", bbox_to_anchor=(1, 0.5), fontsize=14)
 
@@ -306,7 +307,7 @@ plt.show()
 
 
 print(
-    f"The Gamma value is {gamma_min3:.4g} +/- {gamma_uncertainty:.4f} and the mass is {mass_min3:.4g} +/- {mass_uncertainty}."
+    f"The Gamma value is {gamma_min3:.4g} +/- {gamma_uncertainty:.4f} and the mass is {mass_min3:.4g} +/- {mass_uncertainty:.4f}."
     f" The lifetime of the particle is {lifetime(gamma_min3):.3E}s."
     f"The reduced chi^2 value is {red_chi:.3f}"
 )
